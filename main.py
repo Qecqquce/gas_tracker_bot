@@ -1,8 +1,7 @@
 import aiohttp
-import logging
+from logger import logger
 import os
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
-from telegram import Update
 import telegram
 from dotenv import load_dotenv
 import time
@@ -17,21 +16,9 @@ GAS_PRICE_URL = (f'https://api.etherscan.io/api?module=gastracker'
                  f'&action=gasoracle&apikey={ETHERSCAN_API}')
 ETHER_PRICE_URL = (f'https://api.etherscan.io/api?'
                    f'module=stats&action=ethprice&apikey={ETHERSCAN_API}')
+
 GWEI_IN_ETH = 1000000000
 GAS = 21000
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s - %(name)s -'
-                              '%(levelname)s - %(message)s')
-stream_handler = logging.StreamHandler()
-stream_handler.setFormatter(formatter)
-logger.addHandler(stream_handler)
-
-file_handler = logging.FileHandler(filename="logger.log")
-file_handler.setLevel(logging.DEBUG)
-file_handler.setFormatter(formatter)
-logger.addHandler(file_handler)
 
 
 def check_tokens():
@@ -43,8 +30,9 @@ def check_tokens():
         raise SystemExit('Проверь токены!')
 
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = telegram.ReplyKeyboardMarkup([['/get_gas_price']],
+async def start(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = telegram.ReplyKeyboardMarkup([['/get_gas_price'],
+                                             ['/gas_alert']],
                                             resize_keyboard=True)
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text="I'm a bot!",
@@ -52,39 +40,32 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def get_eth_price(session):
-    logger.info('start get_eth_price')
     async with session.get(ETHER_PRICE_URL) as resp:
-        logger.info('2 get_eth_price')
         data = await resp.json()
-        logger.info('3 get_eth_price')
         eth_price = data['result']['ethusd']
-        logger.info('end get_eth_price')
         return eth_price
 
 
-async def get_gas_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logger.info('start get_gas_price')
+async def get_gas_price(update: telegram.Update,
+                        context: ContextTypes.DEFAULT_TYPE):
     start_time = time.time()
     async with aiohttp.ClientSession() as session:
         eth_price_task = asyncio.create_task(get_eth_price(session))
-        logger.info('1 get_gas_price')
         async with session.get(GAS_PRICE_URL) as resp:
-            logger.info('2 get_gas_price')
             data = await resp.json()
-            logger.info('3 get_gas_price')
-            logger.info('4 get_gas_price')
+            eth_price = await eth_price_task
             slow_gwei_price = int(data['result']['SafeGasPrice'])
             average_gwei_price = int(data['result']['ProposeGasPrice'])
             fast_gwei_price = int(data['result']['FastGasPrice'])
 
             slow_usd_price = await gas_price_to_usd(slow_gwei_price,
-                                                    eth_price_task.result())
+                                                    eth_price)
             logger.info('5 get_gas_price')
             average_usd_price = await gas_price_to_usd(average_gwei_price,
-                                                       eth_price_task.result())
+                                                       eth_price)
 
             fast_usd_price = await gas_price_to_usd(fast_gwei_price,
-                                                    eth_price_task.result())
+                                                    eth_price)
             elapsed_time = time.time() - start_time
             gas_prices_text = (
                 f'Ethereum price {eth_price_task.result()}$\n\n'
@@ -100,11 +81,16 @@ async def get_gas_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def gas_price_to_usd(gwei, eth_price):
-    logger.info('start gas_price_to_usd')
     eth_price = float(eth_price)
     usd_price = gwei/GWEI_IN_ETH*GAS*eth_price
-    logger.info('end gas_price_to_usd')
     return usd_price
+
+
+async def gas_alert(update: telegram.Update,
+                    context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_chat.id
+    message_text = update.message.text
+    await context.bot.send_message(chat_id=user_id, text=message_text)
 
 
 def main():
@@ -112,6 +98,7 @@ def main():
     application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler("get_gas_price", get_gas_price))
+    application.add_handler(CommandHandler("gas_alert", gas_alert))
     application.run_polling()
 
 
