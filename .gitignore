@@ -160,3 +160,4 @@ cython_debug/
 #.idea/
 
 /gas_db.sqlite
+gas_db.sqlite
