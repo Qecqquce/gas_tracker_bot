@@ -1,6 +1,5 @@
 import aiohttp
 import os
-import asyncio
 import telegram
 from telegram.ext import (
     ApplicationBuilder,
@@ -13,7 +12,6 @@ from telegram.ext import (
 
 from dotenv import load_dotenv
 from sql import create_db, add_gas_price, check_gas_price
-from logger import logger
 
 load_dotenv()
 
@@ -34,13 +32,13 @@ async def start(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE):
                                    text="I'm a bot!",
                                    reply_markup=keyboard)
 
+
 async def eth_price(context: ContextTypes.DEFAULT_TYPE):
     global ETH_PRICE
     async with aiohttp.ClientSession() as session:
         async with session.get(ETHER_PRICE_URL) as resp:
             data = await resp.json()
             ETH_PRICE = data['result']['ethusd']
-
 
 
 async def get_eth_price(update: telegram.Update,

@@ -29,35 +29,10 @@ async def add_gas_price(alert_gas_price, chat_id):
             conn.commit()
 
 
-
-
-
-async def check_gas_price(eth_price):
+async def check_gas_price(average_gas_price):
     with sqlite3.connect('gas_db.sqlite') as conn:
         cur = conn.cursor()
-        cur.execute("SELECT chat_id FROM users_gas_alert WHERE alert_gas_price <= ?", (eth_price,))
+        cur.execute("SELECT chat_id FROM users_gas_alert WHERE alert_gas_price >= ?", (average_gas_price,))
         rows = cur.fetchall()
+        print(rows)
         return rows
-
-async def check_table():
-    conn = sqlite3.connect('gas_db.sqlite')
-    cur = conn.cursor()
-
-    select_all_query = "SELECT * FROM users_gas_alert"
-    cur.execute(select_all_query)
-    rows = cur.fetchall()
-
-    for row in rows:
-        print(row)
-
-    cur.close()
-    conn.close()
-
-# Create an event loop
-loop = asyncio.get_event_loop()
-
-# Run the check_table() function within the event loop
-loop.run_until_complete(check_table())
-
-# Close the event loop
-loop.close()
